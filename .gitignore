@@ -1,0 +1,11 @@
+/target
+initramfs/
+initramfs.img
+
+kernel/linux-zen-omen/
+*.ko*
+*.zst
+
+kernel/
+.env
+*.log

@@ -1,0 +1,602 @@
+import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+export struct OSItem {
+    name: string,
+    subtitle: string,
+    accent_color: color,
+    kernel: string,
+    arch: string,
+    bootloader: string,
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Responsive scale helper
+// ─────────────────────────────────────────────────────────────
+global Scale {
+    in property <length> win-w;
+
+    out property <float> f: clamp(
+        0.55 + (win-w / 1px - 800) * (0.85 / 1120),
+        0.55, 1.40
+    );
+
+    out property <length> pad:        clamp(win-w * 0.045, 28px, 70px);
+    out property <length> gap:        clamp(win-w * 0.035, 18px, 55px);
+    out property <length> btn-h:      clamp(42px, 42px + (win-w / 1px - 800) * 0.025px, 68px);
+    out property <length> hdr-fs:      clamp(16px, 16px + (win-w / 1px - 800) * 0.018px, 30px);
+    out property <length> sub-fs:      clamp(10px, 10px + (win-w / 1px - 800) * 0.006px, 16px);
+    out property <length> btn-fs:      clamp(13px, 13px + (win-w / 1px - 800) * 0.010px, 20px);
+    out property <length> info-fs:    clamp(12px, 12px + (win-w / 1px - 800) * 0.007px, 18px);
+    out property <length> label-fs:   clamp(9px,  9px  + (win-w / 1px - 800) * 0.005px, 13px);
+    out property <length> dot-r:      clamp(4px,  4px  + (win-w / 1px - 800) * 0.003px, 10px);
+    out property <length> boot-h:      clamp(38px, 38px + (win-w / 1px - 800) * 0.022px, 60px);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Pulsing glow ring
+// ─────────────────────────────────────────────────────────────
+component PulseRing inherits Rectangle {
+    in property <color>  accent;
+    in property <bool>  active;
+    in property <length> dot-size;
+
+    width: dot-size * 2.8;
+    height: dot-size * 2.8;
+    border-radius: self.width / 2;
+    background: transparent;
+
+    dot := Rectangle {
+        width: dot-size;
+        height: dot-size;
+        x: (parent.width  - self.width)  / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: self.width / 2;
+        background: active ? accent : #313244;
+        animate background { duration: 200ms; }
+    }
+
+    halo1 := Rectangle {
+        property <float> pulse: active ? 1.0 : 0.0;
+        animate pulse {
+            duration: 1400ms;
+            iteration-count: -1;
+            easing: ease-in-out;
+        }
+        width:  dot-size * (1.0 + pulse * 1.6);
+        height: self.width;
+        x: (parent.width  - self.width)  / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: self.width / 2;
+        background: active ? accent.with-alpha(0.18 - pulse * 0.18) : transparent;
+    }
+
+    halo2 := Rectangle {
+        property <float> pulse: active ? 1.0 : 0.0;
+        animate pulse {
+            duration: 1000ms;
+            iteration-count: -1;
+            easing: ease-in-out;
+        }
+        width:  dot-size * (1.0 + pulse * 0.9);
+        height: self.width;
+        x: (parent.width  - self.width)  / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: self.width / 2;
+        background: active ? accent.with-alpha(0.28 - pulse * 0.28) : transparent;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Sidebar button
+// ─────────────────────────────────────────────────────────────
+component SidebarButton inherits Rectangle {
+    in property <string> label;
+    in property <string> subtitle;
+    in property <color>  accent-color;
+    in property <bool>   active: false;
+    in property <duration> delay;
+    in property <length>   btn-height;
+    in property <length>   fs-main;
+    in property <length>   fs-sub;
+    in property <length>   dot-sz;
+    in property <length>   pad-h;
+
+    callback clicked();
+
+    horizontal-stretch: 1;
+    height: btn-height;
+    border-radius: 8px;
+    border-width: active ? 1.5px : 1px;
+    background: active ? #1c1c2e : #11111b;
+    border-color: active ? accent-color.with-alpha(0.85) : #2a2a3d;
+
+    animate background, border-color, border-width {
+        duration: 180ms;
+        easing: ease-out;
+    }
+
+    glow := Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 8px;
+        background: active
+            ? @linear-gradient(90deg, accent-color.with-alpha(0.07) 0%, transparent 70%)
+            : transparent;
+        animate background { duration: 250ms; }
+    }
+
+    touch := TouchArea { clicked => { root.clicked(); } }
+
+    states [
+        hover when touch.has-hover && !active : {
+            background: #181828;
+            border-color: accent-color.with-alpha(0.45);
+        }
+    ]
+
+    animate opacity, x {
+        duration: 380ms;
+        delay: delay;
+        easing: ease-out;
+    }
+
+    HorizontalLayout {
+        padding-left: pad-h;
+        padding-right: pad-h;
+        spacing: pad-h * 0.6;
+        alignment: start;
+
+        PulseRing {
+            accent: accent-color;
+            active: root.active;
+            dot-size: dot-sz;
+            y: (parent.height - self.height) / 2;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+
+            Text {
+                text: root.label;
+                color: active ? #cdd6f4 : #7f849c;
+                font-size: fs-main;
+                font-weight: active ? 700 : 500;
+                animate color { duration: 180ms; }
+            }
+            Text {
+                text: root.subtitle;
+                color: active ? accent-color.with-alpha(0.7) : #45475a;
+                font-size: fs-sub;
+                font-weight: 400;
+                animate color { duration: 180ms; }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Info row in the right panel
+// ─────────────────────────────────────────────────────────────
+component InfoRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> value;
+    in property <color>  accent;
+    in property <length> fs;
+    in property <length> label-fs;
+
+    spacing: 12px;
+    alignment: space-between;
+
+    Text {
+        text: label;
+        color: #45475a;
+        font-size: label-fs;
+        font-weight: 600;
+        letter-spacing: 0.8px;
+        vertical-alignment: center;
+    }
+    Text {
+        text: value;
+        color: #cdd6f4;
+        font-size: fs;
+        font-weight: 600;
+        vertical-alignment: center;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Horizontal rule
+// ─────────────────────────────────────────────────────────────
+component HRule inherits Rectangle {
+    in property <color> accent;
+    height: 1px;
+    background: @linear-gradient(90deg, accent.with-alpha(0.6) 0%, #1e1e2e 60%, transparent 100%);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Main window
+// ─────────────────────────────────────────────────────────────
+export component MainWindow inherits Window {
+    in-out property <length> window-width:  1920px;
+    in-out property <length> window-height: 1080px;
+
+    width:  window-width;
+    height: window-height;
+    background: #06060b;
+
+    in property <[OSItem]> os-list;
+    in-out property <int>  selected-os: 0;
+    in-out property <bool> is-visible:  false;
+
+    in-out property <bool> panel-visible: false;
+
+    callback boot-into(string);
+    callback os-selected(int);
+
+    init => {
+        is-visible    = true;
+        panel-visible = true;
+        Scale.win-w = window-width;
+        key-handler.focus();
+    }
+
+    key-handler := FocusScope {
+        key-pressed(event) => {
+            // Down Arrow or 'j'
+            if (event.text == "\u{F701}" || event.text == "j") {
+                root.os-selected(Math.mod(root.selected-os + 1, os-list.length));
+                return accept;
+            }
+            // Up Arrow or 'k'
+            if (event.text == "\u{F700}" || event.text == "k") {
+                root.os-selected(Math.mod(root.selected-os - 1 + os-list.length, os-list.length));
+                return accept;
+            }
+            // Enter key or Spacebar
+            if (event.text == "\n" || event.text == "\u{000D}" || event.text == " ") {
+                root.boot-into(os-list[root.selected-os].name);
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    vignette := Rectangle {
+        width: 100%; height: 100%;
+        background: @radial-gradient(circle,
+            transparent 40%,
+            #000000.with-alpha(0.55) 100%
+        );
+    }
+
+    HorizontalLayout {
+        width: 100%; height: 100%;
+        padding: Scale.pad;
+        spacing: Scale.gap;
+
+        // ── LEFT: Sidebar ────────────────────────────────────
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: Scale.gap * 0.65;
+            alignment: start;
+
+            VerticalLayout {
+                spacing: 4px;
+                opacity: is-visible ? 1.0 : 0.0;
+                animate opacity { duration: 400ms; }
+
+                Text {
+                    text: "ANI-LOADER";
+                    color: #89b4fa;
+                    font-size: Scale.hdr-fs;
+                    font-weight: 800;
+                    letter-spacing: 3px;
+                }
+                Text {
+                    text: "System Bootstrap Runtime";
+                    color: #313244;
+                    font-size: Scale.sub-fs;
+                    letter-spacing: 1px;
+                }
+
+                // Layout-safe spacing
+                Rectangle { height: 6px; }
+
+                // Accent underline bar
+                Rectangle {
+                    height: 2px;
+                    width: 60%;
+                    background: @linear-gradient(90deg, #89b4fa 0%, transparent 100%);
+                }
+            }
+
+            Rectangle { height: Scale.gap * 0.4; }
+
+            Text {
+                text: "SELECT TARGET";
+                color: #313244;
+                font-size: Scale.label-fs;
+                font-weight: 700;
+                letter-spacing: 2px;
+                opacity: is-visible ? 1.0 : 0.0;
+                animate opacity { duration: 400ms; delay: 100ms; }
+            }
+
+            for os[index] in os-list : SidebarButton {
+                label:        os.name;
+                subtitle:     os.subtitle;
+                accent-color: os.accent_color;
+                active:       selected-os == index;
+                btn-height:   Scale.btn-h;
+                fs-main:      Scale.btn-fs;
+                fs-sub:       Scale.sub-fs;
+                dot-sz:       Scale.dot-r;
+                pad-h:        Scale.pad * 0.55;
+                opacity:      is-visible ? 1.0 : 0.0;
+                x:            is-visible ? 0px : -60px;
+                delay:        index * 110ms;
+                clicked => {
+                    if (selected-os != index) {
+                        root.os-selected(index);
+                    }
+                }
+            }
+
+            Rectangle { vertical-stretch: 1; }
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                opacity: is-visible ? 0.7 : 0.0;
+                animate opacity { duration: 500ms; delay: 600ms; }
+
+                Rectangle {
+                    width: 6px; height: 6px;
+                    border-radius: 3px;
+                    background: #a6e3a1;
+                    y: (parent.height - self.height) / 2;
+                }
+                Text {
+                    text: "BIOS OK  ·  UEFI READY";
+                    color: #45475a;
+                    font-size: Scale.label-fs;
+                    font-weight: 600;
+                    letter-spacing: 1.2px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // ── RIGHT: Layout Container ──────────────────────────
+        // This outer box participates in the layout, but contains a 
+        // nested absolute rectangle that handles the coordinate animation safely.
+        Rectangle {
+            horizontal-stretch: 2;
+            height: 100%;
+            background: transparent;
+
+            panel := Rectangle {
+                width: 100%;
+                height: 100%;
+                background: #0e0e1a;
+                border-radius: 16px;
+                border-width: 1px;
+                border-color: #1e1e2e;
+
+                // Absolute animation is now safe inside a layout-free parent container!
+                opacity: panel-visible ? 1.0 : 0.0;
+                x:       panel-visible ? 0px  : 24px;
+                animate opacity { duration: 320ms; easing: ease-out; }
+                animate x       { duration: 320ms; easing: ease-out; }
+
+                accent-bar := Rectangle {
+                    x: 0; y: 0;
+                    width: 100%;
+                    height: 3px;
+                    border-radius: 16px;
+                    background: @linear-gradient(90deg,
+                        os-list[selected-os].accent_color 0%,
+                        os-list[selected-os].accent_color.with-alpha(0.0) 100%
+                    );
+                    animate background { duration: 300ms; }
+                }
+
+                inner-glow := Rectangle {
+                    width: 100%; height: 100%;
+                    border-radius: 16px;
+                    background: @radial-gradient(circle,
+                        os-list[selected-os].accent_color.with-alpha(0.04) 0%,
+                        transparent 65%
+                    );
+                    animate background { duration: 300ms; }
+                }
+
+                VerticalLayout {
+                    padding: Scale.pad * 0.9;
+                    spacing: Scale.gap * 0.7;
+                    alignment: start;
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        spacing: 10px;
+
+                        VerticalLayout {
+                            spacing: 3px;
+                            Text {
+                                text: "SYSTEM SPECIFICATIONS";
+                                color: #585b70;
+                                font-size: Scale.label-fs;
+                                font-weight: 700;
+                                letter-spacing: 2px;
+                            }
+                            Text {
+                                text: os-list[selected-os].name;
+                                color: os-list[selected-os].accent_color;
+                                font-size: Scale.btn-fs * 1.1;
+                                font-weight: 800;
+                                letter-spacing: 1px;
+                                animate color { duration: 250ms; }
+                            }
+                        }
+
+                        Rectangle {
+                            width: Scale.btn-fs * 5;
+                            height: Scale.sub-fs * 2.2;
+                            border-radius: 4px;
+                            background: os-list[selected-os].accent_color.with-alpha(0.12);
+                            border-width: 1px;
+                            border-color: os-list[selected-os].accent_color.with-alpha(0.3);
+                            y: (parent.height - self.height) / 2;
+                            animate background, border-color { duration: 250ms; }
+
+                            Text {
+                                text: os-list[selected-os].arch;
+                                color: os-list[selected-os].accent_color;
+                                font-size: Scale.label-fs;
+                                font-weight: 700;
+                                letter-spacing: 1.5px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                width: 100%; height: 100%;
+                                animate color { duration: 250ms; }
+                            }
+                        }
+                    }
+
+                    HRule { accent: os-list[selected-os].accent_color; }
+
+                    Text {
+                        text: "HARDWARE";
+                        color: #313244;
+                        font-size: Scale.label-fs;
+                        font-weight: 700;
+                        letter-spacing: 2px;
+                    }
+
+                    VerticalLayout {
+                        spacing: Scale.gap * 0.45;
+                        InfoRow {
+                            label: "HOST MACHINE";
+                            value: "HP OMEN Laptop";
+                            accent: os-list[selected-os].accent_color;
+                            fs: Scale.info-fs;
+                            label-fs: Scale.label-fs;
+                        }
+                        InfoRow {
+                            label: "PROCESSOR";
+                            value: "Intel i7-12700H  ·  14C / 20T";
+                            accent: os-list[selected-os].accent_color;
+                            fs: Scale.info-fs;
+                            label-fs: Scale.label-fs;
+                        }
+                        InfoRow {
+                            label: "GRAPHICS";
+                            value: "RTX 3060 Ti  +  Intel Iris Xe";
+                            accent: os-list[selected-os].accent_color;
+                            fs: Scale.info-fs;
+                            label-fs: Scale.label-fs;
+                        }
+                        InfoRow {
+                            label: "MEMORY";
+                            value: "16 GB DDR5-4800";
+                            accent: os-list[selected-os].accent_color;
+                            fs: Scale.info-fs;
+                            label-fs: Scale.label-fs;
+                        }
+                    }
+
+                    HRule { accent: os-list[selected-os].accent_color; }
+
+                    Text {
+                        text: "BOOT TARGET";
+                        color: #313244;
+                        font-size: Scale.label-fs;
+                        font-weight: 700;
+                        letter-spacing: 2px;
+                    }
+
+                    VerticalLayout {
+                        spacing: Scale.gap * 0.45;
+                        InfoRow {
+                            label: "KERNEL";
+                            value: os-list[selected-os].kernel;
+                            accent: os-list[selected-os].accent_color;
+                            fs: Scale.info-fs;
+                            label-fs: Scale.label-fs;
+                        }
+                        InfoRow {
+                            label: "BOOTLOADER";
+                            value: os-list[selected-os].bootloader;
+                            accent: os-list[selected-os].accent_color;
+                            fs: Scale.info-fs;
+                            label-fs: Scale.label-fs;
+                        }
+                        InfoRow {
+                            label: "ARCHITECTURE";
+                            value: os-list[selected-os].arch;
+                            accent: os-list[selected-os].accent_color;
+                            fs: Scale.info-fs;
+                            label-fs: Scale.label-fs;
+                        }
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+
+                    boot-btn := Rectangle {
+                        height: Scale.boot-h;
+                        border-radius: 8px;
+                        background: @linear-gradient(
+                            135deg,
+                            os-list[selected-os].accent_color.with-alpha(0.18) 0%,
+                            os-list[selected-os].accent_color.with-alpha(0.06) 100
+                        );
+                        border-width: 1.5px;
+                        border-color: os-list[selected-os].accent_color.with-alpha(0.6);
+                        animate background, border-color { duration: 250ms; }
+
+                        boot-touch := TouchArea {
+                            clicked => { root.boot-into(os-list[selected-os].name); }
+                        }
+
+                        states [
+                            hover when boot-touch.has-hover : {
+                                background: @linear-gradient(
+                                    135deg,
+                                    os-list[selected-os].accent_color.with-alpha(0.30) 0%,
+                                    os-list[selected-os].accent_color.with-alpha(0.12) 100%
+                                );
+                                border-color: os-list[selected-os].accent_color;
+                            }
+                        ]
+
+                        HorizontalLayout {
+                            alignment: center;
+                            spacing: Scale.gap * 0.4;
+                            padding: Scale.pad * 0.3;
+
+                            Rectangle {
+                                width: Scale.info-fs * 0.5;
+                                height: Scale.boot-h * 0.4;
+                                background: os-list[selected-os].accent_color;
+                                border-radius: 1px;
+                                y: (parent.height - self.height) / 2;
+                                animate background { duration: 250ms; }
+                            }
+
+                            Text {
+                                text: "BOOT  " + os-list[selected-os].name;
+                                color: os-list[selected-os].accent_color;
+                                font-size: Scale.btn-fs;
+                                font-weight: 800;
+                                letter-spacing: 2px;
+                                vertical-alignment: center;
+                                animate color { duration: 250ms; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
